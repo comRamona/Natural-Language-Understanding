@@ -91,7 +91,7 @@ class RNN(object):
             x_t = make_onehot(x[t], self.vocab_size)
             net_in_t = np.dot(self.V, x_t) + np.dot(self.U, s[t-1])
             s[t] = sigmoid(net_in_t)
-            net_out_t = np.dot(self.W, s[t+1])
+            net_out_t = np.dot(self.W, s[t])
             y[t] = softmax(net_out_t)
         
         return y, s
@@ -126,7 +126,6 @@ class RNN(object):
             self.deltaV += np.outer(delta_in, x_t)
             self.deltaU += np.outer(delta_in, s[t-1])
 
-
     def acc_deltas_np(self, x, d, y, s):
         '''
         accumulate updates for V, W, U
@@ -148,6 +147,15 @@ class RNN(object):
         ##########################
         # --- your code here --- #
         ##########################
+        t = len(x)-1
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        delta_out = (d_t - y[t]) * np.ones(self.out_vocab_size)
+        self.deltaW += np.outer(delta_out, s[t])
+        f_net = s[t] * (np.ones(self.hidden_dims) - s[t])
+        delta_in = np.dot(self.W.T, delta_out) * f_net
+        x_t = make_onehot(x[t], self.vocab_size)
+        self.deltaV += np.outer(delta_in, x_t)
+        self.deltaU += np.outer(delta_in, s[t-1])
        
         
     def acc_deltas_bptt(self, x, d, y, s, steps):
@@ -206,22 +214,34 @@ class RNN(object):
         ##########################
         # --- your code here --- #
         ##########################
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        t = len(x)-1
+        delta_out = (d_t - y[t]) * np.ones(self.out_vocab_size)
+        self.deltaW += np.outer(delta_out, s[t])
+        f_net = s[t] * (np.ones(self.hidden_dims) - s[t])
+        delta_in = np.dot(self.W.T, delta_out) * f_net
+        for bptt_step in reversed(range(max(0, t - steps), t + 1)):
+            x_bptt = make_onehot(x[bptt_step], self.vocab_size)
+            self.deltaV += np.outer(delta_in, x_bptt)
+            self.deltaU += np.outer(delta_in, s[bptt_step - 1])
+            f_net = s[bptt_step - 1] * (np.ones(self.hidden_dims) - s[bptt_step - 1])
+            delta_in = np.dot(self.U.T, delta_in) * f_net
 
 
     def compute_loss(self, x, d):
         '''
         compute the loss between predictions y for x, and desired output d.
-        
+
         first predicts the output for x using the RNN, then computes the loss w.r.t. d
-        
+
         x       list of words, as indices, e.g.: [0, 4, 2]
         d       list of words, as indices, e.g.: [4, 2, 3]
-        
+
         return loss     the combined loss for all words
         '''
-        
+
         loss = 0.
-        
+
         ##########################
         # --- your code here --- #
         ##########################
@@ -250,8 +270,13 @@ class RNN(object):
         ##########################
         # --- your code here --- #
         ##########################
-        
+        y, _ = self.predict(x)
+        t = len(x)-1
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        loss -= np.dot(d_t, np.log(y[t]))
+
         return loss
+
 
 
     def compute_acc_np(self, x, d):
@@ -264,13 +289,17 @@ class RNN(object):
         
         return 1 if argmax(y[t]) == d[0], 0 otherwise
         '''
-        
+    
 
         ##########################
         # --- your code here --- #
         ##########################
-        
-        return 0
+        y, _ = self.predict(x)
+        t = len(x)-1
+        if np.argmax(y[t]) == d[0]:
+            return 1
+        else:
+            return 0
 
 
     def compare_num_pred(self, x, d):
@@ -287,8 +316,12 @@ class RNN(object):
         ##########################
         # --- your code here --- #
         ##########################
-        
-        return 0
+        y, _ = self.predict(x)
+        t = len(x)-1
+        if y[t][d[0]]>y[t][d[1]]:
+            return 1
+        else:
+            return 0
 
 
     def compute_acc_lmnp(self, X_dev, D_dev):
@@ -659,12 +692,16 @@ if __name__ == "__main__":
         ##########################
         # --- your code here --- #
         ##########################
-        
-        run_loss = -1
-    adjusted_loss = -1
 
-    print("Unadjusted: %.03f" % np.exp(run_loss))
-    print("Adjusted for missing vocab: %.03f" % np.exp(adjusted_loss))
+        rnn = RNN(vocab_size, hdim, vocab_size)
+        run_loss = rnn.train(X_train, D_train, X_dev, D_dev, learning_rate=lr, back_steps=lookback, anneal=1)
+        
+        basic_adjusted_loss = adjust_loss(run_loss, fraction_lost, q)
+        normal_adjusted_loss = adjust_loss(run_loss, fraction_lost, q, mode='UNBASIC')
+
+        print("Unadjusted: %.03f" % np.exp(run_loss))
+        print("Basic adjusted for missing vocab: %.03f" % np.exp(basic_adjusted_loss))
+        print("Normal adjusted for missing vocab: %.03f" % np.exp(normal_adjusted_loss))
 
 
     if mode == "train-np":
@@ -709,8 +746,11 @@ if __name__ == "__main__":
         ##########################
         # --- your code here --- #
         ##########################
-
-        acc = 0.
+        
+        rnn = RNN(vocab_size, hdim, vocab_size)
+        run_loss = rnn.train_np(X_train, D_train, X_dev, D_dev, learning_rate=lr, back_steps=lookback)
+        
+        acc = sum([self.compute_acc_np(X_dev[i], D_dev[i]) for i in range(len(X_dev))]) / len(X_dev)
         
         print("Accuracy: %.03f" % acc)
 

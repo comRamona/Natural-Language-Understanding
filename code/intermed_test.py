@@ -203,6 +203,140 @@ class RNN(object):
                 f_net = s[bptt_step - 1] * (np.ones(self.hidden_dims) - s[bptt_step - 1])
                 delta_in = np.dot(self.U.T, delta_in) * f_net
 
+    def acc_deltas_np(self, x, d, y, s):
+        '''
+        accumulate updates for V, W, U
+        standard back propagation
+        
+        this should not update V, W, U directly. instead, use deltaV, deltaW, deltaU to accumulate updates over time
+        for number prediction task, we do binary prediction, 0 or 1
+
+        x   list of words, as indices, e.g.: [0, 4, 2]
+        d   array with one element, as indices, e.g.: [0] or [1]
+        y   predicted output layer for x; list of probability vectors, e.g., [[0.3, 0.1, 0.1, 0.5], [0.2, 0.7, 0.05, 0.05] [...]]
+            should be part of the return value of predict(x)
+        s   predicted hidden layer for x; list of vectors, e.g., [[1.2, -2.3, 5.3, 1.0], [-2.1, -1.1, 0.2, 4.2], [...]]
+            should be part of the return value of predict(x)
+        
+        no return values
+        '''
+        
+        ##########################
+        # --- your code here --- #
+        ##########################
+        t = len(x)-1
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        delta_out = (d_t - y[t]) * np.ones(self.out_vocab_size)
+        self.deltaW += np.outer(delta_out, s[t])
+        f_net = s[t] * (np.ones(self.hidden_dims) - s[t])
+        delta_in = np.dot(self.W.T, delta_out) * f_net
+        x_t = make_onehot(x[t], self.vocab_size)
+        self.deltaV += np.outer(delta_in, x_t)
+        self.deltaU += np.outer(delta_in, s[t-1])
+
+
+    def acc_deltas_bptt_np(self, x, d, y, s, steps):
+        '''
+        accumulate updates for V, W, U
+        back propagation through time (BPTT)
+        
+        this should not update V, W, U directly. instead, use deltaV, deltaW, deltaU to accumulate updates over time
+        for number prediction task, we do binary prediction, 0 or 1
+
+        x   list of words, as indices, e.g.: [0, 4, 2]
+        d   array with one element, as indices, e.g.: [0] or [1]
+        y       predicted output layer for x; list of probability vectors, e.g., [[0.3, 0.1, 0.1, 0.5], [0.2, 0.7, 0.05, 0.05] [...]]
+                should be part of the return value of predict(x)
+        s       predicted hidden layer for x; list of vectors, e.g., [[1.2, -2.3, 5.3, 1.0], [-2.1, -1.1, 0.2, 4.2], [...]]
+                should be part of the return value of predict(x)
+        steps   number of time steps to go back in BPTT
+        
+        no return values
+        '''
+        
+        ##########################
+        # --- your code here --- #
+        ##########################
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        t = len(x)-1
+        delta_out = (d_t - y[t]) * np.ones(self.out_vocab_size)
+        self.deltaW += np.outer(delta_out, s[t])
+        f_net = s[t] * (np.ones(self.hidden_dims) - s[t])
+        delta_in = np.dot(self.W.T, delta_out) * f_net
+        for bptt_step in reversed(range(max(0, t - steps), t + 1)):
+            x_bptt = make_onehot(x[bptt_step], self.vocab_size)
+            self.deltaV += np.outer(delta_in, x_bptt)
+            self.deltaU += np.outer(delta_in, s[bptt_step - 1])
+            f_net = s[bptt_step - 1] * (np.ones(self.hidden_dims) - s[bptt_step - 1])
+            delta_in = np.dot(self.U.T, delta_in) * f_net
+
+    def compute_loss_np(self, x, d):
+        '''
+        compute the loss between predictions y for x, and desired output d.
+        
+        first predicts the output for x using the RNN, then computes the loss w.r.t. d
+        
+        x       list of words, as indices, e.g.: [0, 4, 2]
+        d       a word, as indices, e.g.: [0]
+        
+        return loss     we only take the prediction from the last time step
+        '''
+        
+        loss = 0.
+        
+        ##########################
+        # --- your code here --- #
+        ##########################
+        y, _ = self.predict(x)
+        t = len(x)-1
+        d_t = make_onehot(d[0], self.out_vocab_size)
+        loss -= np.dot(d_t, np.log(y[t]))
+
+        return loss
+
+    def compute_acc_np(self, x, d):
+        '''
+        compute the accuracy prediction, y[t] compared to the desired output d.
+        first predicts the output for x using the RNN, then computes the loss w.r.t. d
+        
+        x       list of words, as indices, e.g.: [0, 4, 2]
+        d       a word class (plural/singular), as index, e.g.: [0] or [1]
+        
+        return 1 if argmax(y[t]) == d[0], 0 otherwise
+        '''
+    
+
+        ##########################
+        # --- your code here --- #
+        ##########################
+        y, _ = self.predict(x)
+        t = len(x)-1
+        if np.argmax(y[t]) == d[0]:
+            return 1
+        else:
+            return 0
+
+    def compare_num_pred(self, x, d):
+        '''
+        compute the probability between predictions the desired output d[0] and it's (re)inflected form, d[1].
+        first predicts the output for x using the RNN, then compare the probability of d[0] and d[1].
+        
+        x       list of words, as indices, e.g.: [0, 4, 2]
+        d       the desired verb and its (re)inflected form (singular/plural), as indices, e.g.: [7, 8]
+        
+        return 1 if p(d[0]) > p(d[1]), 0 otherwise
+        '''
+        
+        ##########################
+        # --- your code here --- #
+        ##########################
+        y, _ = self.predict(x)
+        t = len(x)-1
+        if y[t][d[0]]>y[t][d[1]]:
+            return 1
+        else:
+            return 0
+
 
 import numpy as np
 
@@ -234,13 +368,13 @@ deltaV_3_exp = np.array([[-0.07524721, -0.06495432, -0.05560471], [ 0.05465826, 
 deltaW_3_exp = np.array([[-2.36320453, -2.24145091], [ 3.13861959,  2.93420307], [-0.77541506, -0.69275216]])
 
 # binary prediction BP
-deltaU_1_exp_np = np.array([[0.02163905, 0.01915982], [0.01045943, 0.00947443]])
-deltaV_1_exp_np = np.array([[0.00223229, 0.00055869, 0.02157362], [0.00336198, 0.00047162, 0.00806956]])
-deltaW_1_exp_np = np.array([[ 0.50701159, 0.47024475], [-0.27214729, -0.25241205], [-0.23486429, -0.2178327 ]])
+deltaU_1_exp_np = np.array([[0.01926192, 0.01684262], [0.00719671, 0.0062928]])
+deltaV_1_exp_np = np.array([[0., 0., 0.02156006], [0., 0., 0.00805535]])
+deltaW_1_exp_np = np.array([[0.50701159, 0.47024475], [-0.27214729, -0.25241205], [-0.23486429, -0.2178327 ]])
 
 # binary prediction BPPT
-deltaU_3_exp_np = np.array([[ 0.02163711, 0.01915766], [0.01046086, 0.00947553]])
-deltaV_3_exp_np = np.array([[ 0.0022418, 0.00055819, 0.02156012], [0.00337607, 0.00047141, 0.00805541]])
+deltaU_3_exp_np = np.array([[ 0.0216261, 0.01914693], [0.01044642, 0.00946145]])
+deltaV_3_exp_np = np.array([[ 0.00223142, 0.00055566, 0.02156006], [0.00336126, 0.00046926, 0.00805535]])
 deltaW_3_exp_np = np.array([[ 0.50701159, 0.47024475], [-0.27214729, -0.25241205], [-0.23486429, -0.2178327]])
 
 vocabsize = 3
@@ -283,54 +417,54 @@ d3 = np.array([1,2,1,2,1])
 print("### predicting y")
 y,s = r.predict(x)
 if not np.isclose(y_exp, y, rtol=1e-08, atol=1e-08).all():
-  print("y expected\n{0}".format(y_exp))
-  print("y received\n{0}".format(y))
+	print("y expected\n{0}".format(y_exp))
+	print("y received\n{0}".format(y))
 else:
-  print("y passed")
+	print("y passed")
 if not np.isclose(s_exp, s, rtol=1e-08, atol=1e-08).all():
-  print("\ns expected\n{0}".format(s_exp))
-  print("s received\n{0}".format(s))
+	print("\ns expected\n{0}".format(s_exp))
+	print("s received\n{0}".format(s))
 else:
-  print("s passed")
+	print("s passed")
 
-# print("\n### computing loss and mean loss")
+print("\n### computing loss and mean loss")
 loss = r.compute_loss(x,d)
 loss2 = r.compute_loss(x2,d2)
 loss3 = r.compute_loss(x3,d3)
 mean_loss = r.compute_mean_loss([x,x2,x3],[d,d2,d3])
 if not np.isclose(loss_expected, loss, rtol=1e-08, atol=1e-08) or not np.isclose(loss2_expected, loss2, rtol=1e-08, atol=1e-08) or not np.isclose(loss3_expected, loss3, rtol=1e-08, atol=1e-08):
-  print("loss expected: {0}".format(loss_expected))
-  print("loss received: {0}".format(loss))
-  print("loss2 expected: {0}".format(loss2_expected))
-  print("loss2 received: {0}".format(loss2))
-  print("loss3 expected: {0}".format(loss3_expected))
-  print("loss3 received: {0}".format(loss3))
+	print("loss expected: {0}".format(loss_expected))
+	print("loss received: {0}".format(loss))
+	print("loss2 expected: {0}".format(loss2_expected))
+	print("loss2 received: {0}".format(loss2))
+	print("loss3 expected: {0}".format(loss3_expected))
+	print("loss3 received: {0}".format(loss3))
 else:
-  print("loss passed")
+	print("loss passed")
 if not np.isclose(mean_loss_expected, mean_loss, rtol=1e-08, atol=1e-08):
-  print("mean loss expected: {0}".format(mean_loss_expected))
-  print("mean loss received: {0}".format(mean_loss))
+	print("mean loss expected: {0}".format(mean_loss_expected))
+	print("mean loss received: {0}".format(mean_loss))
 else:
-  print("mean loss passed")
+	print("mean loss passed")
 
 
 print("\n### standard BP")
 r.acc_deltas(x,d,y,s)
 if not np.isclose(deltaU_1_exp, r.deltaU).all():
-  print("\ndeltaU expected\n{0}".format(deltaU_1_exp))
-  print("deltaU received\n{0}".format(r.deltaU))
+	print("\ndeltaU expected\n{0}".format(deltaU_1_exp))
+	print("deltaU received\n{0}".format(r.deltaU))
 else:
-  print("deltaU passed")
+	print("deltaU passed")
 if not np.isclose(deltaV_1_exp, r.deltaV).all():
-  print("\ndeltaV expected\n{0}".format(deltaV_1_exp))
-  print("deltaV received\n{0}".format(r.deltaV))
+	print("\ndeltaV expected\n{0}".format(deltaV_1_exp))
+	print("deltaV received\n{0}".format(r.deltaV))
 else:
-  print("deltaV passed")
+	print("deltaV passed")
 if not np.isclose(deltaW_1_exp, r.deltaW).all():
-  print("\ndeltaW expected\n{0}".format(deltaW_1_exp))
-  print("deltaW received\n{0}".format(r.deltaW))
+	print("\ndeltaW expected\n{0}".format(deltaW_1_exp))
+	print("deltaW received\n{0}".format(r.deltaW))
 else:
-  print("deltaW passed")
+	print("deltaW passed")
 
 print("\n### BPTT with 3 steps")
 r.deltaU.fill(0)
@@ -339,95 +473,94 @@ r.deltaW.fill(0)
 
 r.acc_deltas_bptt(x,d,y,s,3)
 if not np.isclose(deltaU_3_exp, r.deltaU).all():
-  print("\ndeltaU expected\n{0}".format(deltaU_3_exp))
+	print("\ndeltaU expected\n{0}".format(deltaU_3_exp))
+	print("deltaU received\n{0}".format(r.deltaU))
+else:
+	print("deltaU passed")
+if not np.isclose(deltaV_3_exp, r.deltaV).all():
+	print("\ndeltaV expected\n{0}".format(deltaV_3_exp))
+	print("deltaV received\n{0}".format(r.deltaV))
+else:
+	print("deltaV passed")
+if not np.isclose(deltaW_3_exp, r.deltaW).all():
+	print("\ndeltaW expected\n{0}".format(deltaW_3_exp))
+	print("deltaW received\n{0}".format(r.deltaW))
+else:
+	print("deltaW passed")
+	
+# # BINARY PREDICTION TEST
+
+
+print("\n### computing binary prediction loss")
+np_loss = r.compute_loss_np(x,d_np)
+if not np.isclose(np_loss_expected, np_loss, rtol=1e-08, atol=1e-08):
+   print("np loss expected: {0}".format(np_loss_expected))
+   print("np loss received: {0}".format(np_loss))
+else:
+   print("np loss passed")
+
+print("\n### binary prediction BP")
+r.deltaU.fill(0)
+r.deltaV.fill(0)
+r.deltaW.fill(0)
+
+r.acc_deltas_np(x,d_np,y,s)
+if not np.isclose(deltaU_1_exp_np, r.deltaU).all():
+  print("\ndeltaU expected\n{0}".format(deltaU_1_exp_np))
   print("deltaU received\n{0}".format(r.deltaU))
 else:
   print("deltaU passed")
-if not np.isclose(deltaV_3_exp, r.deltaV).all():
-  print("\ndeltaV expected\n{0}".format(deltaV_3_exp))
+if not np.isclose(deltaV_1_exp_np, r.deltaV).all():
+  print("\ndeltaV expected\n{0}".format(deltaV_1_exp_np))
   print("deltaV received\n{0}".format(r.deltaV))
 else:
   print("deltaV passed")
-if not np.isclose(deltaW_3_exp, r.deltaW).all():
-  print("\ndeltaW expected\n{0}".format(deltaW_3_exp))
+if not np.isclose(deltaW_1_exp_np, r.deltaW).all():
+  print("\ndeltaW expected\n{0}".format(deltaW_1_exp_np))
   print("deltaW received\n{0}".format(r.deltaW))
 else:
   print("deltaW passed")
 
 
-# # BINARY PREDICTION TEST
+print("\n### binary prediction BPTT with 3 steps")
+r.deltaU.fill(0)
+r.deltaV.fill(0)
+r.deltaW.fill(0)
+
+r.acc_deltas_bptt_np(x,d_np,y,s,3)
+if not np.isclose(deltaU_3_exp_np, r.deltaU).all():
+  print("\ndeltaU expected\n{0}".format(deltaU_3_exp_np))
+  print("deltaU received\n{0}".format(r.deltaU))
+else:
+  print("deltaU passed")
+if not np.isclose(deltaV_3_exp_np, r.deltaV).all():
+  print("\ndeltaV expected\n{0}".format(deltaV_3_exp_np))
+  print("deltaV received\n{0}".format(r.deltaV))
+else:
+  print("deltaV passed")
+if not np.isclose(deltaW_3_exp_np, r.deltaW).all():
+  print("\ndeltaW expected\n{0}".format(deltaW_3_exp_np))
+  print("deltaW received\n{0}".format(r.deltaW))
+else:
+  print("deltaW passed")
 
 
-# print("\n### computing binary prediction loss")
-# np_loss = r.compute_loss_np(x,d_np)
-# if not np.isclose(np_loss_expected, np_loss, rtol=1e-08, atol=1e-08):
-#   print("np loss expected: {0}".format(np_loss_expected))
-#   print("np loss received: {0}".format(np_loss))
-# else:
-#   print("np loss passed")
-
-# print("\n### binary prediction BP")
-# r.deltaU.fill(0)
-# r.deltaV.fill(0)
-# r.deltaW.fill(0)
-
-# r.acc_deltas_np(x,d_np,y,s)
-# if not np.isclose(deltaU_1_exp_np, r.deltaU).all():
-#   print("\ndeltaU expected\n{0}".format(deltaU_1_exp_np))
-#   print("deltaU received\n{0}".format(r.deltaU))
-# else:
-#   print("deltaU passed")
-# if not np.isclose(deltaV_1_exp_np, r.deltaV).all():
-#   print("\ndeltaV expected\n{0}".format(deltaV_1_exp_np))
-#   print("deltaV received\n{0}".format(r.deltaV))
-# else:
-#   print("deltaV passed")
-# if not np.isclose(deltaW_1_exp_np, r.deltaW).all():
-#   print("\ndeltaW expected\n{0}".format(deltaW_1_exp_np))
-#   print("deltaW received\n{0}".format(r.deltaW))
-# else:
-#   print("deltaW passed")
+print("\n### compute accuracy for binary prediction")
+acc = r.compute_acc_np(x, d_np)
+if acc != acc_expected:
+  print("acc expected\n{0}".format(acc_expected))
+  print("acc received\n{0}".format(acc))
+else:
+  print("acc passed")
 
 
-# print("\n### binary prediction BPTT with 3 steps")
-# r.deltaU.fill(0)
-# r.deltaV.fill(0)
-# r.deltaW.fill(0)
-
-# r.acc_deltas_bptt_np(x,d_np,y,s,3)
-# if not np.isclose(deltaU_3_exp_np, r.deltaU).all():
-#   print("\ndeltaU expected\n{0}".format(deltaU_3_exp_np))
-#   print("deltaU received\n{0}".format(r.deltaU))
-# else:
-#   print("deltaU passed")
-# if not np.isclose(deltaV_3_exp_np, r.deltaV).all():
-#   print("\ndeltaV expected\n{0}".format(deltaV_3_exp_np))
-#   print("deltaV received\n{0}".format(r.deltaV))
-# else:
-#   print("deltaV passed")
-# if not np.isclose(deltaW_3_exp_np, r.deltaW).all():
-#   print("\ndeltaW expected\n{0}".format(deltaW_3_exp_np))
-#   print("deltaW received\n{0}".format(r.deltaW))
-# else:
-#   print("deltaW passed")
-
-
-# print("\n### compute accuracy for binary prediction")
-# acc = r.compute_acc_np(x, d_np)
-# if acc != acc_expected:
-#   print("acc expected\n{0}".format(acc_expected))
-#   print("acc received\n{0}".format(acc))
-# else:
-#   print("acc passed")
-
-
-# print("\n### compute accuracy for LM binary prediction")
-# acc1 = r.compare_num_pred(x, d1_lm_np)
-# acc2 = r.compare_num_pred(x, d2_lm_np)
-# if acc1 != acc1_np_lm_expected or acc2 != acc2_np_lm_expected:
-#   print("LM acc1 expected\n{0}".format(acc1_np_lm_expected))
-#   print("LM acc1 received\n{0}".format(acc1))
-#   print("LM acc2 expected\n{0}".format(acc2_np_lm_expected))
-#   print("LM acc2 received\n{0}".format(acc2))
-# else:
-#   print("LM acc passed")
+print("\n### compute accuracy for LM binary prediction")
+acc1 = r.compare_num_pred(x, d1_lm_np)
+acc2 = r.compare_num_pred(x, d2_lm_np)
+if acc1 != acc1_np_lm_expected or acc2 != acc2_np_lm_expected:
+  print("LM acc1 expected\n{0}".format(acc1_np_lm_expected))
+  print("LM acc1 received\n{0}".format(acc1))
+  print("LM acc2 expected\n{0}".format(acc2_np_lm_expected))
+  print("LM acc2 received\n{0}".format(acc2))
+else:
+  print("LM acc passed")
