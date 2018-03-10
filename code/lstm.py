@@ -26,7 +26,7 @@ data_folder = "../data"
 # In[55]:
 
 
-vocab_size = 2000
+vocab_size = 8000
 vocab = pd.read_table(data_folder + "/vocab.wiki.txt", header=None, sep="\s+", index_col=0, names=['count', 'freq'], )
 num_to_word = dict(enumerate(vocab.index[:vocab_size]))
 word_to_num = invert_dict(num_to_word)
@@ -84,7 +84,7 @@ embedding_layer = Embedding(len(num_to_word) + 1,
                             EMBEDDING_DIM,
                             weights=[embedding_matrix],
                             input_length=MAX_SEQUENCE_LENGTH,
-                            trainable=False)
+                            trainable=True)
 
 
 
@@ -105,11 +105,11 @@ model.compile(loss='binary_crossentropy',
               metrics=['acc'])
 model.summary()
 model.fit(x_train, D_train, validation_data=(x_dev, D_dev),
-          epochs=50, batch_size=128, callbacks = callbacks)
+          epochs=50, batch_size=100, callbacks = callbacks)
 
 
-# at the end
-# preds = model.predict(X_t)
-# acc = np.mean((preds > 0.5) == D_test.reshape(-1, 1))
-# print("Test accuracy: ", acc)
+#at the end
+preds = model.predict(x_test)
+acc = np.mean((preds > 0.5) == D_test.reshape(-1, 1))
+print("Test accuracy: ", acc)
 
