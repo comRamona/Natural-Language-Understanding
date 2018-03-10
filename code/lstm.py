@@ -1,9 +1,5 @@
 
 # coding: utf-8
-
-# In[1]:
-
-
 import sys
 import time
 import numpy as np
@@ -57,10 +53,6 @@ X_test, D_test = seqs_to_npXY(S_test)
 # pd.Series(X_len).hist()
 # plt.show()
 
-
-# In[15]:
-
-
 EMBEDDING_DIM = 100
 MAX_SEQUENCE_LENGTH = 20
 x_train = pad_sequences(X_train, maxlen=MAX_SEQUENCE_LENGTH, dtype='int32', padding='post', truncating='post', value = word_to_num["</s>"])
@@ -105,8 +97,8 @@ out = Dense(1, activation="sigmoid")(dense_)
 
 model = Model(sequence_input, out)
 callbacks = [
-    EarlyStopping(monitor='val_acc', patience=5, verbose=0),
-    ModelCheckpoint("checkpint", monitor='val_loss', save_best_only=True, verbose=0)]
+    EarlyStopping(monitor='val_acc', patience=5, verbose=1),
+    ModelCheckpoint("checkpint", monitor='val_loss', save_best_only=True, verbose=1)]
 
 model.compile(loss='binary_crossentropy',
               optimizer='adam',
