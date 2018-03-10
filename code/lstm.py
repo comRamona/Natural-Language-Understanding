@@ -129,7 +129,7 @@ out = Dense(1, activation="sigmoid")(dense_)
 model = Model(sequence_input, out)
 callbacks = [
     EarlyStopping(monitor='val_acc', patience=5, verbose=0),
-    ModelCheckpoint("./", monitor='val_loss', save_best_only=True, verbose=0)]
+    ModelCheckpoint("checkpint", monitor='val_loss', save_best_only=True, verbose=0)]
 
 model.compile(loss='binary_crossentropy',
               optimizer='adam',
