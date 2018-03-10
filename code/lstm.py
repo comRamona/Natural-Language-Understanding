@@ -7,6 +7,7 @@
 import sys
 import time
 import numpy as np
+import os
 
 from utils import *
 from rnnmath import *
@@ -52,9 +53,6 @@ S_test = docs_to_indices(sents, word_to_num, 0, 0)
 X_test, D_test = seqs_to_npXY(S_test)
 
 
-# In[14]:
-
-
 # X_len = list(map(lambda x: len(x), X_train))
 # pd.Series(X_len).hist()
 # plt.show()
@@ -65,20 +63,11 @@ X_test, D_test = seqs_to_npXY(S_test)
 
 EMBEDDING_DIM = 100
 MAX_SEQUENCE_LENGTH = 20
-
-
-# In[63]:
-
-
 x_train = pad_sequences(X_train, maxlen=MAX_SEQUENCE_LENGTH, dtype='int32', padding='post', truncating='post', value = word_to_num["</s>"])
 x_dev = pad_sequences(X_dev, maxlen=MAX_SEQUENCE_LENGTH, dtype='int32', padding='post', truncating='post', value = word_to_num["</s>"])
 x_test = pad_sequences(X_test, maxlen=MAX_SEQUENCE_LENGTH, dtype='int32', padding='post', truncating='post', value = word_to_num["</s>"])
 
 
-# In[29]:
-
-
-import os
 embeddings_index = {}
 with open(os.path.join(data_folder, 'glove.6B/glove.6B.100d.txt'), "r") as f:
     lines = f.read().split("\n")
@@ -90,8 +79,6 @@ with open(os.path.join(data_folder, 'glove.6B/glove.6B.100d.txt'), "r") as f:
             embeddings_index[word] = coefs
 
 
-# In[34]:
-
 
 embedding_unk = embeddings_index.get("unk")
 embedding_matrix = np.zeros((len(word_to_num) + 1, EMBEDDING_DIM))
@@ -100,11 +87,7 @@ for word, i in word_to_num.items():
     embedding_matrix[i] = embedding_vector
 
 
-# In[37]:
 
-
-EMBEDDING_DIM = 100
-MAX_SEQUENCE_LENGTH = 20
 embedding_layer = Embedding(len(num_to_word) + 1,
                             EMBEDDING_DIM,
                             weights=[embedding_matrix],
@@ -112,18 +95,12 @@ embedding_layer = Embedding(len(num_to_word) + 1,
                             trainable=False)
 
 
-# In[52]:
-
 
 sequence_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 embedded_sequences = embedding_layer(sequence_input)
-lstm = LSTM(75, input_shape=(MAX_SEQUENCE_LENGTH, EMBEDDING_DIM)) (embedded_sequences)
-dense_ = Dense(50, activation="relu")(lstm)
+lstm = LSTM(64, input_shape=(MAX_SEQUENCE_LENGTH, EMBEDDING_DIM)) (embedded_sequences)
+dense_ = Dense(128, activation="relu")(lstm)
 out = Dense(1, activation="sigmoid")(dense_)
-
-
-# In[ ]:
-
 
 
 model = Model(sequence_input, out)
@@ -139,10 +116,8 @@ model.fit(x_train, D_train, validation_data=(x_dev, D_dev),
           epochs=50, batch_size=128, callbacks = callbacks)
 
 
-# In[57]:
-
-
-preds = model.predict(X_t)
-acc = np.mean((preds > 0.5) == D_test.reshape(-1, 1))
-print("Test accuracy: ", acc)
+# at the end
+# preds = model.predict(X_t)
+# acc = np.mean((preds > 0.5) == D_test.reshape(-1, 1))
+# print("Test accuracy: ", acc)
 
