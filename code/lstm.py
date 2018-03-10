@@ -91,7 +91,7 @@ embedding_layer = Embedding(len(num_to_word) + 1,
 sequence_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype='int32')
 embedded_sequences = embedding_layer(sequence_input)
 lstm = LSTM(64, input_shape=(MAX_SEQUENCE_LENGTH, EMBEDDING_DIM)) (embedded_sequences)
-dense_ = Dense(128, activation="relu")(lstm)
+dense_ = Dense(200, activation="relu")(lstm)
 out = Dense(1, activation="sigmoid")(dense_)
 
 
